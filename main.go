@@ -5,14 +5,28 @@ import (
 	"github.com/gdamore/tcell/v2"
 )
 
-// enum like structure in go for two editing modes
-
+// Go does not have enums, so we use a type alias for a more readable code
 type Mode int
 const (
-    Normal = iota
-    Insert
+    Command Mode = iota 
+    Write       
 )
 
+func (m Mode) String() string {
+    switch m {
+    case Command:
+        return "Command"
+    case Write:
+        return "Write"
+    }
+    return "Unknown"
+}
+
+type Editor struct  {
+    mode Mode
+    cursorX int
+    cursorY int
+}
 
 func initScreen() tcell.Screen {
 	defStyle := tcell.StyleDefault.Background(tcell.ColorReset).Foreground(tcell.ColorReset)
@@ -48,8 +62,7 @@ func initScreen() tcell.Screen {
 
 func main() {
     screen := initScreen()
-    editMode:= Normal
-
+    editorState := initState()
 
 	for {
 		// Update screen
@@ -60,11 +73,11 @@ func main() {
 
 		// Process event
 		switch ev := ev.(type) {
-		case *tcell.EventResize:
-            // re-render the whole screen. Only do on clear or resize
-			screen.Sync()
-		case *tcell.EventKey:
-
+            case *tcell.EventResize:
+                // re-render the whole screen. Only do on clear or resize
+                screen.Sync()
+            case *tcell.EventKey:
+                if ev.Key() == KeyRune{
 
 		}
 	}
