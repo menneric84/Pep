@@ -1,14 +1,15 @@
 use std::io::{stdout, Stdout, Write};
 
+use anyhow::Result;
 use crossterm::{
     cursor,
-    event::{self, read, KeyCode, KeyEvent, KeyModifiers},
-    terminal::{self, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
+    event::{read, Event, KeyCode, KeyEvent},
+    terminal::{self, enable_raw_mode, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand, QueueableCommand,
 };
 use serde::{Deserialize, Serialize};
 
-use crate::config::{self, Config};
+use crate::config::{Config, KeyAction};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub enum Mode {
@@ -29,7 +30,7 @@ pub struct Editor {
 }
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum Action {
-    Quit(bool),
+    Quit,
     MoveUp,
     MoveDown,
     MoveLeft,
@@ -58,59 +59,32 @@ impl Editor {
     fn leave_alt_screen(&mut self) {
         self.out.execute(LeaveAlternateScreen).unwrap();
     }
+    fn raw(&mut self) {
+        terminal::enable_raw_mode().unwrap();
+    }
 
     fn flush(&mut self) {
         self.out.flush().unwrap();
     }
 
-    fn handle_normal_key_event(&mut self, event: KeyEvent) {
-        match event.code {
-            KeyCode::Char('i') => {
-                self.enter_insert_mode();
-            }
-            _ => {}
-        }
-    }
 
-    fn handle_normal_key_event_with_modifier(&mut self, event: KeyEvent) {
-        match event.code {
-            _ => {}
-        }
-    }
-
-    fn handle_insert_key_event(&mut self, event: KeyEvent) {
-        match event.code {
-            _ => {}
-        }
-    }
-
-    fn handle_insert_key_event_with_modifier(&mut self, event: KeyEvent) {
-        match event.code {
-            _ => {}
-        }
-    }
-
-    fn handle_key_event(&mut self, event: KeyEvent) {
-        match self.mode {
-            Mode::Normal => {
-                if crossterm::event::KeyModifiers::is_empty(&event.modifiers) {
-                    self.handle_normal_key_event(event);
-                } else {
-                    self.handle_normal_key_event_with_modifier(event);
+    pub fn handle_key_event( &mut self, action: Option<KeyAction>) {
+        match action {
+            Some(action) => {
+                match action {
+                    KeyAction::Single(a) => self.handle_single_action(a),
+                    KeyAction::Multiple(_) => todo!(),
+                    KeyAction::Nested(_) => todo!(),
+                    KeyAction::Repeating(_, _) => todo!(),
                 }
             }
-            Mode::Insert => {
-                if event.modifiers.is_empty() {
-                    self.handle_insert_key_event(event);
-                } else {
-                    self.handle_insert_key_event_with_modifier(event);
-                }
-            }
+            None => todo!(),
         }
     }
+    
 
     pub fn new(config: Config) -> anyhow::Result<Self> {
-        let mut out: Stdout = stdout();
+        let out: Stdout = stdout();
 
         Ok(Self {
             out,
@@ -120,47 +94,53 @@ impl Editor {
         })
     }
 
-    pub fn run(&mut self) -> anyhow::Result<()> {
+    fn handle_normal_event(&mut self, event: Event) {
+        match event {
+            Event::Key(KeyEvent{code, modifiers, ..}) => {
+                match code {
+                    KeyCode::Char(c) => {
+                        
+                        let normal = self.config.keys.normal.clone();
+                        let action = normal.get(&format!("{c}")).cloned();
+                        match action {
+                            Some(_) => self.handle_key_event(action.clone()),
+                            None => todo!(),
+                        }
+
+
+                    }
+                    _ => todo!()
+                }
+            }
+            _ => todo!(),
+        }
+
+    }
+
+    pub fn run(&mut self) -> Result<()> {
         self.clear();
+        self.enter_alt_screen();
+        self.raw();
+
+        loop {
         self.flush();
 
         let ev = read()?;
-        let normal = self.config.keys.normal.clone();
 
-        let key_action = match ev {
-            event::Event::Key(KeyEvent {
-                code, modifiers, ..
-            }) => {
-                let key = format!("{code:?}");
-
-                let key = match modifiers {
-                    KeyModifiers::CONTROL => format!("Ctrl-{key}"),
-                    KeyModifiers::ALT => format!("Alt-{key}"),
-                    _ => key,
-                };
-
-                println!("{:?}", key);
-                normal.get(&key).cloned()
-            }
-            event::Event::FocusGained => todo!(),
-            event::Event::FocusLost => todo!(),
-            event::Event::Mouse(_) => todo!(),
-            event::Event::Paste(_) => todo!(),
-            event::Event::Resize(_, _) => todo!(),
-        }?;
-
-        match key_action {
-            config::KeyAction::Single(action) => {
-                self.handle_key_event(action); 
-
-            },
-            config::KeyAction::Multiple(_) => todo!(),
-            config::KeyAction::Nested(_) => todo!(),
-            config::KeyAction::Repeating(_, _) => todo!(),
+        match self.mode {
+            Mode::Normal => self.handle_normal_event(ev),
+            Mode::Insert => todo!(),
         }
+        }
+    }
 
-
-        let ev = read()?;
-        Ok(())
+    fn handle_single_action(&mut self, a: Action) {
+        match a {
+            Action::Quit => std::process::exit(0),
+            Action::MoveUp => self.move_cursor(self.cursor.x, self.cursor.y - 1),
+            Action::MoveDown => self.move_cursor(self.cursor.x, self.cursor.y + 1),
+            Action::MoveLeft => self.move_cursor(self.cursor.x - 1, self.cursor.y),
+            Action::MoveRight => self.move_cursor(self.cursor.x + 1, self.cursor.y),
+        }
     }
 }
