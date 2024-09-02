@@ -1,0 +1,11 @@
+theme = "themes/nightfox.json"
+
+[keys.normal]
+"Down" = "MoveDown"
+"Left" = "MoveLeft"
+"Right" = "MoveRight"
+"Up" = "MoveUp"
+"k" = "MoveUp"
+"j" = "MoveDown"
+"h" = "MoveLeft"
+"l" = "MoveRight"
