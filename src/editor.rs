@@ -2,11 +2,13 @@ use std::io::{stdout, Stdout, Write};
 
 use crossterm::{
     cursor,
-    event::{KeyCode, KeyEvent},
+    event::{self, read, KeyCode, KeyEvent, KeyModifiers},
     terminal::{self, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand, QueueableCommand,
 };
 use serde::{Deserialize, Serialize};
+
+use crate::config::{self, Config};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub enum Mode {
@@ -23,6 +25,7 @@ pub struct Editor {
     out: Stdout,
     cursor: Cursor,
     mode: Mode,
+    config: Config,
 }
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum Action {
@@ -106,22 +109,58 @@ impl Editor {
         }
     }
 
-    pub fn new() -> anyhow::Result<Self> {
+    pub fn new(config: Config) -> anyhow::Result<Self> {
         let mut out: Stdout = stdout();
+
         Ok(Self {
             out,
             cursor: Cursor { x: 0, y: 0 },
             mode: Mode::Normal,
+            config,
         })
     }
 
     pub fn run(&mut self) -> anyhow::Result<()> {
-        self.enter_alt_screen();
         self.clear();
         self.flush();
 
+        let ev = read()?;
+        let normal = self.config.keys.normal.clone();
 
-        self.leave_alt_screen();
+        let key_action = match ev {
+            event::Event::Key(KeyEvent {
+                code, modifiers, ..
+            }) => {
+                let key = format!("{code:?}");
+
+                let key = match modifiers {
+                    KeyModifiers::CONTROL => format!("Ctrl-{key}"),
+                    KeyModifiers::ALT => format!("Alt-{key}"),
+                    _ => key,
+                };
+
+                println!("{:?}", key);
+                normal.get(&key).cloned()
+            }
+            event::Event::FocusGained => todo!(),
+            event::Event::FocusLost => todo!(),
+            event::Event::Mouse(_) => todo!(),
+            event::Event::Paste(_) => todo!(),
+            event::Event::Resize(_, _) => todo!(),
+        }?;
+
+        match key_action {
+            config::KeyAction::Single(action) => {
+                self.handle_key_event(action); 
+
+            },
+            config::KeyAction::Multiple(_) => todo!(),
+            config::KeyAction::Nested(_) => todo!(),
+            config::KeyAction::Repeating(_, _) => todo!(),
+        }
+
+
+        let ev = read()?;
         Ok(())
     }
 }

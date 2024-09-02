@@ -18,7 +18,7 @@ fn main() -> anyhow::Result<()> {
     eprintln!("Read config file: {}", toml);
     let config: Config = toml::from_str(&toml)?;
 
-    let mut editor = Editor::new()?;
+    let mut editor = Editor::new(config)?;
     editor.run()?;
 
     return Ok(());
