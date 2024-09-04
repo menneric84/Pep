@@ -1,11 +1,8 @@
-use std::io::{stdout, Stdout, Write};
+use std::{fs::File, io::{stdout, Read, Stdout, Write}};
 
 use anyhow::Result;
 use crossterm::{
-    cursor,
-    event::{read, Event, KeyCode, KeyEvent},
-    terminal::{self, enable_raw_mode, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
-    ExecutableCommand, QueueableCommand,
+    cursor::{self, SetCursorStyle}, event::{read, Event, KeyCode, KeyEvent}, style, terminal::{self, ClearType, EnterAlternateScreen, LeaveAlternateScreen}, ExecutableCommand, QueueableCommand
 };
 use serde::{Deserialize, Serialize};
 
@@ -27,7 +24,9 @@ pub struct Editor {
     cursor: Cursor,
     mode: Mode,
     config: Config,
+    file: File
 }
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum Action {
     Quit,
@@ -35,6 +34,9 @@ pub enum Action {
     MoveDown,
     MoveLeft,
     MoveRight,
+    InsertMode,
+    DeleteUnderCursor,
+    NormalMode,
 }
 
 impl Editor {
@@ -46,6 +48,12 @@ impl Editor {
 
     fn enter_insert_mode(&mut self) {
         self.mode = Mode::Insert;
+        self.out.queue(SetCursorStyle::BlinkingBar).unwrap();
+    }
+
+    fn enter_normal_mode(&mut self) {
+        self.mode = Mode::Normal;
+        self.out.queue(SetCursorStyle::DefaultUserShape).unwrap();
     }
 
     fn clear(&mut self) {
@@ -67,23 +75,19 @@ impl Editor {
         self.out.flush().unwrap();
     }
 
-
-    pub fn handle_key_event( &mut self, action: Option<KeyAction>) {
+    pub fn handle_key_event(&mut self, action: Option<KeyAction>) {
         match action {
-            Some(action) => {
-                match action {
-                    KeyAction::Single(a) => self.handle_single_action(a),
-                    KeyAction::Multiple(_) => todo!(),
-                    KeyAction::Nested(_) => todo!(),
-                    KeyAction::Repeating(_, _) => todo!(),
-                }
-            }
+            Some(action) => match action {
+                KeyAction::Single(a) => self.handle_single_action(a),
+                KeyAction::Multiple(_) => todo!(),
+                KeyAction::Nested(_) => todo!(),
+                KeyAction::Repeating(_, _) => todo!(),
+            },
             None => todo!(),
         }
     }
-    
 
-    pub fn new(config: Config) -> anyhow::Result<Self> {
+    pub fn new(config: Config, mut file: File) -> anyhow::Result<Self> {
         let out: Stdout = stdout();
 
         Ok(Self {
@@ -91,46 +95,48 @@ impl Editor {
             cursor: Cursor { x: 0, y: 0 },
             mode: Mode::Normal,
             config,
+            file
         })
     }
 
     fn handle_normal_event(&mut self, event: Event) {
         match event {
-            Event::Key(KeyEvent{code, modifiers, ..}) => {
-                match code {
-                    KeyCode::Char(c) => {
-                        
-                        let normal = self.config.keys.normal.clone();
-                        let action = normal.get(&format!("{c}")).cloned();
-                        match action {
-                            Some(_) => self.handle_key_event(action.clone()),
-                            None => todo!(),
-                        }
-
-
+            Event::Key(KeyEvent {
+                code, modifiers, ..
+            }) => match code {
+                KeyCode::Char(c) => {
+                    let normal = self.config.keys.normal.clone();
+                    let action = normal.get(&format!("{c}")).cloned();
+                    match action {
+                        Some(_) => self.handle_key_event(action.clone()),
+                        None => todo!(),
                     }
-                    _ => todo!()
                 }
-            }
+                _ => todo!(),
+            },
             _ => todo!(),
         }
-
     }
 
     pub fn run(&mut self) -> Result<()> {
         self.clear();
         self.enter_alt_screen();
         self.raw();
+        let mut buff = String::new();
+        self.file.read_to_string(&mut buff)?;
+
+        self.out.queue(style::Print(buff));
+        self.move_cursor(0, 0);
 
         loop {
-        self.flush();
+            self.flush();
 
-        let ev = read()?;
+            let ev = read()?;
 
-        match self.mode {
-            Mode::Normal => self.handle_normal_event(ev),
-            Mode::Insert => todo!(),
-        }
+            match self.mode {
+                Mode::Normal => self.handle_normal_event(ev),
+                Mode::Insert => todo!(),
+            }
         }
     }
 
@@ -141,6 +147,9 @@ impl Editor {
             Action::MoveDown => self.move_cursor(self.cursor.x, self.cursor.y + 1),
             Action::MoveLeft => self.move_cursor(self.cursor.x - 1, self.cursor.y),
             Action::MoveRight => self.move_cursor(self.cursor.x + 1, self.cursor.y),
+            Action::InsertMode => self.enter_insert_mode(),
+            Action::NormalMode => self.enter_normal_mode(),
+            Action::DeleteUnderCursor => todo!(),
         }
     }
 }

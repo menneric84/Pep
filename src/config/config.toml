@@ -10,3 +10,9 @@ theme = "themes/nightfox.json"
 "j" = "MoveDown"
 "h" = "MoveLeft"
 "l" = "MoveRight"
+"i" = "InsertMode"
+"Escape" = "NormalMode"
+"x" = "DeleteUnderCursor"
+
+[keys.insert]
+"Escape" = "NormalMode"
