@@ -1,10 +1,11 @@
-use std::{fs::{self, OpenOptions}, io::Read};
+use std::fs::{self};
 
 use config::Config;
 use editor::Editor;
 
 mod config;
 mod editor;
+mod window;
 
 fn main() -> anyhow::Result<()> {
     let config_file = Config::path("config.toml");
@@ -21,27 +22,9 @@ fn main() -> anyhow::Result<()> {
 
     let args = std::env::args();
 
-    match args.max() {
-        Some(arg) => {
-            let mut file = fs::OpenOptions::new()
-                .read(true)
-                .write(true)
-                .create(true)
-                .open(arg);
-
-            if file.is_err() {
-                eprintln!("Error opening file: {}", file.err().unwrap());
-                std::process::exit(1);
-            }
-
-            match Editor::new(config, file?) {
-                Err(e) => eprintln!("Error creating editor: {}", e),
-                Ok(mut e) => e.run()?,
-            }
-        }
-        None => {
-            eprintln!("No fileName provided");
-        }
+    match Editor::new(config, "/home/rick/repos/pep/src/test.txt".to_string()) {
+        Err(e) => eprintln!("Error creating editor: {}", e),
+        Ok(mut e) => e.run()?,
     }
 
     return Ok(());
