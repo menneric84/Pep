@@ -3,7 +3,7 @@ use std::io::{stdout, Stdout, Write};
 use anyhow::Result;
 use crossterm::{
     cursor::{self, SetCursorStyle},
-    event::{read, Event, KeyCode, KeyEvent},
+    event::{read, Event, KeyCode, KeyEvent, KeyModifiers},
     style,
     terminal::{self, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand, QueueableCommand,
@@ -36,6 +36,9 @@ pub enum Action {
     InsertMode,
     DeleteUnderCursor,
     NormalMode,
+    Save,
+    InsertLineAfter,
+    InsertLineAbove,
 }
 
 impl Editor {
@@ -43,9 +46,6 @@ impl Editor {
         self.current_buffer.cursor.x = x;
         self.current_buffer.cursor.y = y;
         self.out.queue(cursor::MoveTo(x, y)).unwrap();
-    }
-    fn write(&mut self, mut s: String) {
-
     }
 
     fn enter_insert_mode(&mut self) {
@@ -111,11 +111,20 @@ impl Editor {
     fn handle_normal_event(&mut self, event: Event) {
         match event {
             Event::Key(KeyEvent {
-                code, ..
+                code, modifiers, ..
             }) => match code {
                 KeyCode::Char(c) => {
+                    let action = self.config.keys..get(&c.to_string()).cloned();
+                    
+                    let modifier = match modifiers {
+                        KeyModifiers::SHIFT => "S-",
+                        KeyModifiers::CONTROL => "C-",
+                        _ => "",
+                    };
+
                     let normal = self.config.keys.normal.clone();
-                    let action = normal.get(&format!("{c}")).cloned();
+
+                    let action = normal.get(&format!("{modifier}{c}")).cloned();
                     match action {
                         Some(_) => self.handle_key_event(action.clone()),
                         None => (),
@@ -133,7 +142,7 @@ impl Editor {
                 code, ..
             }) => match code {
                 KeyCode::Char(c) => {
-                    current_buffer.buffer[current_buffer.cursor.y].insert(current_buffer.cursor.x, c);
+                    self.current_buffer.insert(c.to_string());
                 }
                 KeyCode::Esc => {
                     self.enter_normal_mode();
@@ -202,8 +211,8 @@ impl Editor {
             Action::MoveLeft => 
                 if self.current_buffer.cursor.x > 0 {
                     self.move_cursor(
-                        self.current_buffer.cursor.y,
                         self.current_buffer.cursor.x - 1,
+                        self.current_buffer.cursor.y,
                     );
                 } else {
                     self.move_cursor(
@@ -217,7 +226,13 @@ impl Editor {
             ),
             Action::InsertMode => self.enter_insert_mode(),
             Action::NormalMode => self.enter_normal_mode(),
-            Action::DeleteUnderCursor => (),
+            Action::InsertLineAfter => self.current_buffer.insert_line_below(),
+            Action::InsertLineAbove => self.current_buffer.insert_line_above(),
+            Action::DeleteUnderCursor => self.current_buffer.delete_under_cursor(), 
+            Action::Save => match self.current_buffer.save().map_err(|e| e.to_string()) {
+                Ok(_) => (),
+                Err(e) => eprintln!("{}", e),
+            }, 
         }
     }
 }
