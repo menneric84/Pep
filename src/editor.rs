@@ -44,6 +44,9 @@ impl Editor {
         self.current_buffer.cursor.y = y;
         self.out.queue(cursor::MoveTo(x, y)).unwrap();
     }
+    fn write(&mut self, mut s: String) {
+
+    }
 
     fn enter_insert_mode(&mut self) {
         self.current_buffer.mode = Mode::Insert;
@@ -83,11 +86,11 @@ impl Editor {
         match action {
             Some(action) => match action {
                 KeyAction::Single(a) => self.handle_single_action(a),
-                KeyAction::Multiple(_) => todo!(),
-                KeyAction::Nested(_) => todo!(),
-                KeyAction::Repeating(_, _) => todo!(),
+                KeyAction::Multiple(_) => (),
+                KeyAction::Nested(_) => (),
+                KeyAction::Repeating(_, _) => (),
             },
-            None => todo!(),
+            None => (),
         }
     }
 
@@ -108,34 +111,36 @@ impl Editor {
     fn handle_normal_event(&mut self, event: Event) {
         match event {
             Event::Key(KeyEvent {
-                code, modifiers, ..
+                code, ..
             }) => match code {
                 KeyCode::Char(c) => {
                     let normal = self.config.keys.normal.clone();
                     let action = normal.get(&format!("{c}")).cloned();
                     match action {
                         Some(_) => self.handle_key_event(action.clone()),
-                        None => todo!(),
+                        None => (),
                     }
                 }
-                _ => todo!(),
+                _ => (),
             },
-            _ => todo!(),
+            _ => (),
         }
     }
 
     fn handle_insert_event(&mut self, event: Event) {
         match event {
             Event::Key(KeyEvent {
-                code, modifiers, ..
+                code, ..
             }) => match code {
-                KeyCode::Char(c) => {}
+                KeyCode::Char(c) => {
+                    current_buffer.buffer[current_buffer.cursor.y].insert(current_buffer.cursor.x, c);
+                }
                 KeyCode::Esc => {
                     self.enter_normal_mode();
                 }
-                _ => todo!(),
+                _ => ()
             },
-            _ => todo!(),
+            _ => (),
         }
     }
 
@@ -176,25 +181,43 @@ impl Editor {
                 self.disable_raw();
                 std::process::exit(0);
             }
-            Action::MoveUp => self.move_cursor(
-                self.current_buffer.cursor.x,
-                self.current_buffer.cursor.y - 1,
-            ),
+            Action::MoveUp => {
+                if self.current_buffer.cursor.y > 0 {
+                    self.move_cursor(
+                        self.current_buffer.cursor.x,
+                        self.current_buffer.cursor.y - 1,
+                    );
+                } else {
+                    self.move_cursor(
+                        self.current_buffer.cursor.x,
+                        self.current_buffer.cursor.y,
+                    );
+                }
+
+            }
             Action::MoveDown => self.move_cursor(
                 self.current_buffer.cursor.x,
                 self.current_buffer.cursor.y + 1,
             ),
-            Action::MoveLeft => self.move_cursor(
-                self.current_buffer.cursor.x - 1,
-                self.current_buffer.cursor.y,
-            ),
+            Action::MoveLeft => 
+                if self.current_buffer.cursor.x > 0 {
+                    self.move_cursor(
+                        self.current_buffer.cursor.y,
+                        self.current_buffer.cursor.x - 1,
+                    );
+                } else {
+                    self.move_cursor(
+                        self.current_buffer.cursor.x,
+                        self.current_buffer.cursor.y,
+                    );
+                }
             Action::MoveRight => self.move_cursor(
                 self.current_buffer.cursor.x + 1,
                 self.current_buffer.cursor.y,
             ),
             Action::InsertMode => self.enter_insert_mode(),
             Action::NormalMode => self.enter_normal_mode(),
-            Action::DeleteUnderCursor => todo!(),
+            Action::DeleteUnderCursor => (),
         }
     }
 }
