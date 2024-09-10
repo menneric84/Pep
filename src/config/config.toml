@@ -12,6 +12,7 @@ theme = "themes/nightfox.json"
 "h" = "MoveLeft"
 "l" = "MoveRight"
 "i" = "InsertMode"
+"a" = "InsertAfter"
 "Escape" = "NormalMode"
 "x" = "DeleteUnderCursor"
 "o" = "InsertLineAfter"
@@ -19,6 +20,10 @@ theme = "themes/nightfox.json"
 "Enter" = "InsertLineAfter"
 "dd" = "DeleteLine"
 "d" = {"d" = "DeleteLine", "w" = "DeleteWord"}
+"w" = "MoveWordRight"
+"b" = "MoveWordLeft"
+"S-E" = "MoveToEndOfLine"
+"S-B" = "MoveToStartOfLine"
 
 [keys.insert]
 "Escape" = "NormalMode"

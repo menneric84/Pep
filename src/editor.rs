@@ -40,10 +40,15 @@ pub enum Action {
     DeleteUnderCursor,
     NormalMode,
     Save,
+    InsertAfter,
     InsertLineAfter,
     InsertLineAbove,
     DeleteLine,
     DeleteWord,
+    MoveWordRight,
+    MoveWordLeft,
+    MoveToStartOfLine,
+    MoveToEndOfLine
 }
 
 impl Editor {
@@ -61,7 +66,7 @@ impl Editor {
             self.current_buffer.cursor.y = y;
         }
 
-        let buffer_width = {
+        let mut buffer_width = {
             if self.current_buffer.buffer[self.current_buffer.cursor.y as usize].len() as u16 > 0 {
                 self.current_buffer.buffer[self.current_buffer.cursor.y as usize].len() as u16 - 1
             } else {
@@ -69,12 +74,15 @@ impl Editor {
             }
         };
 
+        if self.current_buffer.mode == Mode::Insert && buffer_width > 0 {
+            buffer_width += 1;
+        }
+
         if x > buffer_width {
             self.current_buffer.cursor.x = buffer_width;
         } else {
             self.current_buffer.cursor.x = x;
         }
-
 
         self.out
             .queue(cursor::MoveTo(
@@ -84,12 +92,23 @@ impl Editor {
             .unwrap();
     }
 
-    fn enter_insert_mode(&mut self) {
-        self.current_buffer.mode = Mode::Insert;
+    fn enter_insert_mode(&mut self, after: bool) {
         self.out.queue(SetCursorStyle::BlinkingBar).unwrap();
+        self.current_buffer.mode = Mode::Insert;
+        if after {
+            self.move_cursor(
+                self.current_buffer.cursor.x + 1,
+                self.current_buffer.cursor.y,
+            );
+        }
     }
 
     fn enter_normal_mode(&mut self) {
+        if self.current_buffer.mode == Mode::Insert && self.current_buffer.cursor.x > 0 {
+            self.move_cursor(self.current_buffer.cursor.x - 1, self.current_buffer.cursor.y);
+        } else {
+            self.move_cursor(self.current_buffer.cursor.x, self.current_buffer.cursor.y);
+        }
         self.current_buffer.mode = Mode::Normal;
         self.out.queue(SetCursorStyle::DefaultUserShape).unwrap();
     }
@@ -137,7 +156,7 @@ impl Editor {
             Event::Key(KeyEvent { code, .. }) => match code {
                 KeyCode::Char(c) => match actions.get(&c.to_string()) {
                     Some(x) => self.handle_key_event(Some(x.clone())),
-                    None => todo!(),
+                    None => (),
                 },
                 _ => (),
             },
@@ -194,6 +213,11 @@ impl Editor {
                 KeyCode::Esc => {
                     self.enter_normal_mode();
                 }
+                KeyCode::Up => self.handle_single_action(Action::MoveUp),
+                KeyCode::Down => self.handle_single_action(Action::MoveDown),
+                KeyCode::Left => self.handle_single_action(Action::MoveLeft),
+                KeyCode::Right => self.handle_single_action(Action::MoveRight),
+                KeyCode::Backspace => self.handle_single_action(Action::DeleteUnderCursor),
                 _ => (),
             },
             _ => (),
@@ -266,7 +290,8 @@ impl Editor {
                 self.current_buffer.cursor.x + 1,
                 self.current_buffer.cursor.y,
             ),
-            Action::InsertMode => self.enter_insert_mode(),
+            Action::InsertMode => self.enter_insert_mode(false),
+            Action::InsertAfter => self.enter_insert_mode(true),
             Action::NormalMode => self.enter_normal_mode(),
             Action::InsertLineAfter => self.current_buffer.insert_line_below(),
             Action::InsertLineAbove => self.current_buffer.insert_line_above(),
@@ -276,7 +301,17 @@ impl Editor {
                 Err(e) => eprintln!("{}", e),
             },
             Action::DeleteLine => self.current_buffer.delete_line(),
-            Action::DeleteWord => (),
+            Action::MoveToEndOfLine => {
+                self.move_cursor(self.current_buffer.width(), self.current_buffer.cursor.y);
+                self.enter_insert_mode(true);
+            }
+            Action::MoveToStartOfLine => {
+                self.move_cursor(0, self.current_buffer.cursor.y);
+                self.enter_insert_mode(true);
+            }
+            Action::DeleteWord => self.current_buffer.delete_word(),
+            Action::MoveWordLeft => self.move_cursor(self.current_buffer.find_word_start() as u16, self.current_buffer.cursor.y),
+            Action::MoveWordRight => self.move_cursor(self.current_buffer.find_word_end() as u16, self.current_buffer.cursor.y),
         }
     }
 }
