@@ -17,8 +17,8 @@ theme = "themes/nightfox.json"
 "o" = "InsertLineAfter"
 "S-O" = "InsertLineAbove"
 "Enter" = "InsertLineAfter"
-"d" = "Delete"
 "dd" = "DeleteLine"
+"d" = {"d" = "DeleteLine", "w" = "DeleteWord"}
 
 [keys.insert]
 "Escape" = "NormalMode"

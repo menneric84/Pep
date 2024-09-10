@@ -1,4 +1,7 @@
-use std::io::{stdout, Stdout, Write};
+use std::{
+    collections::HashMap,
+    io::{stdout, Stdout, Write},
+};
 
 use anyhow::Result;
 use crossterm::{
@@ -10,8 +13,8 @@ use crossterm::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::window::Window;
 use crate::config::{Config, KeyAction};
+use crate::window::Window;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub enum Mode {
@@ -39,13 +42,46 @@ pub enum Action {
     Save,
     InsertLineAfter,
     InsertLineAbove,
+    DeleteLine,
+    DeleteWord,
 }
 
 impl Editor {
     fn move_cursor(&mut self, x: u16, y: u16) {
-        self.current_buffer.cursor.x = x;
-        self.current_buffer.cursor.y = y;
-        self.out.queue(cursor::MoveTo(x, y)).unwrap();
+        let buffer_height = {
+            if self.current_buffer.buffer.len() as u16 > 0 {
+                self.current_buffer.buffer.len() as u16 - 1
+            } else {
+                0
+            }
+        };
+        if y > buffer_height {
+            self.current_buffer.cursor.y = buffer_height;
+        } else {
+            self.current_buffer.cursor.y = y;
+        }
+
+        let buffer_width = {
+            if self.current_buffer.buffer[self.current_buffer.cursor.y as usize].len() as u16 > 0 {
+                self.current_buffer.buffer[self.current_buffer.cursor.y as usize].len() as u16 - 1
+            } else {
+                0
+            }
+        };
+
+        if x > buffer_width {
+            self.current_buffer.cursor.x = buffer_width;
+        } else {
+            self.current_buffer.cursor.x = x;
+        }
+
+
+        self.out
+            .queue(cursor::MoveTo(
+                self.current_buffer.cursor.x,
+                self.current_buffer.cursor.y,
+            ))
+            .unwrap();
     }
 
     fn enter_insert_mode(&mut self) {
@@ -86,11 +122,26 @@ impl Editor {
         match action {
             Some(action) => match action {
                 KeyAction::Single(a) => self.handle_single_action(a),
-                KeyAction::Multiple(_) => (),
-                KeyAction::Nested(_) => (),
+                KeyAction::Multiple(a) => print!("{:?}", a),
+                KeyAction::Nested(a) => self.handle_nested_action(a),
                 KeyAction::Repeating(_, _) => (),
             },
             None => (),
+        }
+    }
+
+    pub fn handle_nested_action(&mut self, actions: HashMap<String, KeyAction>) {
+        let event = read().unwrap();
+
+        match event {
+            Event::Key(KeyEvent { code, .. }) => match code {
+                KeyCode::Char(c) => match actions.get(&c.to_string()) {
+                    Some(x) => self.handle_key_event(Some(x.clone())),
+                    None => todo!(),
+                },
+                _ => (),
+            },
+            _ => (),
         }
     }
 
@@ -114,8 +165,6 @@ impl Editor {
                 code, modifiers, ..
             }) => match code {
                 KeyCode::Char(c) => {
-                    let action = self.config.keys..get(&c.to_string()).cloned();
-                    
                     let modifier = match modifiers {
                         KeyModifiers::SHIFT => "S-",
                         KeyModifiers::CONTROL => "C-",
@@ -138,16 +187,14 @@ impl Editor {
 
     fn handle_insert_event(&mut self, event: Event) {
         match event {
-            Event::Key(KeyEvent {
-                code, ..
-            }) => match code {
+            Event::Key(KeyEvent { code, .. }) => match code {
                 KeyCode::Char(c) => {
                     self.current_buffer.insert(c.to_string());
                 }
                 KeyCode::Esc => {
                     self.enter_normal_mode();
                 }
-                _ => ()
+                _ => (),
             },
             _ => (),
         }
@@ -197,29 +244,24 @@ impl Editor {
                         self.current_buffer.cursor.y - 1,
                     );
                 } else {
-                    self.move_cursor(
-                        self.current_buffer.cursor.x,
-                        self.current_buffer.cursor.y,
-                    );
+                    self.move_cursor(self.current_buffer.cursor.x, self.current_buffer.cursor.y);
                 }
-
             }
             Action::MoveDown => self.move_cursor(
                 self.current_buffer.cursor.x,
                 self.current_buffer.cursor.y + 1,
             ),
-            Action::MoveLeft => 
+            Action::MoveLeft => {
                 if self.current_buffer.cursor.x > 0 {
                     self.move_cursor(
                         self.current_buffer.cursor.x - 1,
                         self.current_buffer.cursor.y,
                     );
+                    return;
                 } else {
-                    self.move_cursor(
-                        self.current_buffer.cursor.x,
-                        self.current_buffer.cursor.y,
-                    );
+                    self.move_cursor(self.current_buffer.cursor.x, self.current_buffer.cursor.y);
                 }
+            }
             Action::MoveRight => self.move_cursor(
                 self.current_buffer.cursor.x + 1,
                 self.current_buffer.cursor.y,
@@ -228,11 +270,13 @@ impl Editor {
             Action::NormalMode => self.enter_normal_mode(),
             Action::InsertLineAfter => self.current_buffer.insert_line_below(),
             Action::InsertLineAbove => self.current_buffer.insert_line_above(),
-            Action::DeleteUnderCursor => self.current_buffer.delete_under_cursor(), 
+            Action::DeleteUnderCursor => self.current_buffer.delete_under_cursor(),
             Action::Save => match self.current_buffer.save().map_err(|e| e.to_string()) {
                 Ok(_) => (),
                 Err(e) => eprintln!("{}", e),
-            }, 
+            },
+            Action::DeleteLine => self.current_buffer.delete_line(),
+            Action::DeleteWord => (),
         }
     }
 }
