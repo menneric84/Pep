@@ -1,6 +1,7 @@
 theme = "themes/nightfox.json"
 
 [keys.normal]
+"u" = "Undo"
 "q" = "Quit"
 "s" = "Save"
 "Down" = "MoveDown"

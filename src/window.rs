@@ -11,11 +11,17 @@ pub struct Window {
     pub cursor: Cursor,
     pub mode: Mode,
     pub file_path: String,
+    pub snapshot: Vec<Snapshot>,
 }
 
 pub struct Cursor {
     pub(crate) x: u16,
     pub(crate) y: u16,
+}
+
+pub struct Snapshot {
+    pub buffer: Vec<String>,
+    pub cursor: Cursor,
 }
 
 impl Window {
@@ -34,17 +40,35 @@ impl Window {
                     cursor: Cursor { x: 0, y: 0 },
                     mode: Mode::Normal,
                     file_path: path,
+                    snapshot: Vec::new(),
                 });
             }
         }
     }
 
-    pub fn width(&self) -> u16 {
-        self.buffer[self.cursor.y as usize].len() as u16
+    pub fn do_undo(&mut self) {
+        if self.snapshot.len() < 2 {
+            return;
+        }
+        self.snapshot.pop().unwrap();
+        let snap = self.snapshot.pop().unwrap();
+        self.buffer = snap.buffer;
+        self.cursor = snap.cursor;
+        self.render_buffer = true;
     }
 
-    pub fn line_buffer(&self) -> String {
-        self.buffer[self.cursor.y as usize].clone()
+    pub fn push_snapshot(&mut self) {
+        self.snapshot.push(Snapshot {
+            buffer: self.buffer.clone(),
+            cursor: Cursor {
+                x: self.cursor.x,
+                y: self.cursor.y,
+            },
+        });
+    }
+
+    pub fn width(&self) -> u16 {
+        self.buffer[self.cursor.y as usize].len() as u16
     }
 
     pub fn save(&self) -> anyhow::Result<()> {

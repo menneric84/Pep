@@ -22,7 +22,7 @@ fn main() -> anyhow::Result<()> {
 
     let args = std::env::args();
 
-    match Editor::new(config, "/Users/rickymenne/repos/pep/src/test.txt".to_string()) {
+    match Editor::new(config, "/home/rick/repos/pep/src/test.txt".to_string()) {
         Err(e) => eprintln!("Error creating editor: {}", e),
         Ok(mut e) => e.run()?,
     }

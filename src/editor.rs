@@ -48,7 +48,8 @@ pub enum Action {
     MoveWordRight,
     MoveWordLeft,
     MoveToStartOfLine,
-    MoveToEndOfLine
+    MoveToEndOfLine,
+    Undo
 }
 
 impl Editor {
@@ -247,6 +248,7 @@ impl Editor {
 
             let ev = read()?;
 
+            self.current_buffer.push_snapshot();
             match self.current_buffer.mode {
                 Mode::Normal => self.handle_normal_event(ev),
                 Mode::Insert => self.handle_insert_event(ev),
@@ -312,6 +314,9 @@ impl Editor {
             Action::DeleteWord => self.current_buffer.delete_word(),
             Action::MoveWordLeft => self.move_cursor(self.current_buffer.find_word_start() as u16, self.current_buffer.cursor.y),
             Action::MoveWordRight => self.move_cursor(self.current_buffer.find_word_end() as u16, self.current_buffer.cursor.y),
+            Action::Undo => {
+                self.current_buffer.do_undo();
+            }
         }
     }
 }
